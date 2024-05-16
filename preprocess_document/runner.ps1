@@ -1,8 +1,8 @@
-python .\scripts\convert_pdf_to_image.py --input_dir "data" --output_dir "data" --postfix ".png"
+python .\scripts\convert_pdf_to_image.py --input_dir "output" --output_dir "output" --postfix ".png"
 
 python .\src\inference.py `
---image_dir "data/images" `
---out_dir "data/results" `
+--image_dir "output/images" `
+--out_dir "output/results" `
 --mode "extract" `
 --detection_config_path "src/detection_config.json" `
 --detection_model_path "model/detection.pth" `
@@ -11,4 +11,4 @@ python .\src\inference.py `
 --html `
 --crops `
 --objects `
---words_dir "data/words"
+--words_dir "output/words"

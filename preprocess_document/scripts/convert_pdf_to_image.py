@@ -5,6 +5,7 @@ import argparse
 import platform
 from PIL import ImageDraw
 import json
+import os
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -35,7 +36,6 @@ def get_words_from_pdf(page, image_size):
                    'line_num': x[6], 
                    'block_num': x[5]} for i, x in enumerate(page_words)]
     return page_words
-    
 
 if __name__ == "__main__":
     args = get_args()
@@ -51,6 +51,7 @@ if __name__ == "__main__":
     separator = '/' if os_type == 'Linux' else '\\' # windows
 
     error_files = []
+    success_files = []
     pdf_files = sorted(list(root.glob(f'**{separator}*.[pP][dD][fF]')))
     success_imgs_count = 0
 
@@ -79,11 +80,12 @@ if __name__ == "__main__":
                     json.dump(page_words, f, indent=2, ensure_ascii=False)
                 success_imgs_count += 1
 
+            success_files.append(pdf_filename)
             print(f'convert pdf from {fname} to {pdf_filename}_page#{postfix}')
         except Exception as e:
             print(f'error occured while converting pdf from {fname} to {pdf_filename}_page#{postfix}')
             print(e)
-            error_files.append(str(fname))
+            error_files.append(pdf_filename)
             continue
 
     print('======== Report ========')
@@ -97,5 +99,8 @@ if __name__ == "__main__":
         f.write(f'Successed {len(pdf_files)-len(error_files)} pdf files, Failed {len(error_files)} pdf files.\n')
         f.write(f'Successed {success_imgs_count} pages.\n')
         f.write('========================\n')
+        f.write('Successful pdf file list:\n')
+        f.write('\n'.join(success_files) + '\n')
+        f.write('========================\n')
         f.write('Failed pdf file list:\n')
-        f.write('\n'.join(error_files))
+        f.write('\n'.join(error_files) + '\n')
