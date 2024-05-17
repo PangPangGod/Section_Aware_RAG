@@ -137,7 +137,7 @@ if __name__ == "__main__":
     try:
         # Example usage
         base_path = Path("preprocess_document/output")
-        pdf_path = base_path / "sample.pdf"
+        pdf_path = base_path / "Delivery condition_501001_DL-06-ST-463-ENG Rev J.pdf"
 
         detection_path = base_path / "results/detection"
         structure_path = base_path / "results/structure"

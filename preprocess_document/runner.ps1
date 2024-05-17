@@ -1,3 +1,6 @@
+$scriptDir = Split-Path -Parent -Path $MyInvocation.MyCommand.Definition
+Set-Location -Path $scriptDir ## .ps1 execute path from {root} to preprocess_document
+
 python .\scripts\convert_pdf_to_image.py --input_dir "output" --output_dir "output" --postfix ".png"
 
 python .\src\inference.py `

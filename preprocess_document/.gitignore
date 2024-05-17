@@ -1,3 +1,6 @@
 #Foldernames
 model
 output
+
+__pycache__
+detr/__pycache__
