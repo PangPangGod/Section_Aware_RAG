@@ -9,6 +9,8 @@ import torch.nn.functional as F
 import torchvision
 from torch import nn
 from torchvision.models._utils import IntermediateLayerGetter
+from torchvision.models import ResNet18_Weights, ResNet34_Weights, ResNet50_Weights, ResNet101_Weights, ResNet152_Weights
+
 from typing import Dict, List
 
 # from detr.util.misc import NestedTensor, is_main_process
@@ -87,9 +89,23 @@ class Backbone(BackboneBase):
                  train_backbone: bool,
                  return_interm_layers: bool,
                  dilation: bool):
+        weights_dict = {
+            'resnet18': ResNet18_Weights.DEFAULT,
+            'resnet34': ResNet34_Weights.DEFAULT,
+            'resnet50': ResNet50_Weights.DEFAULT,
+            'resnet101': ResNet101_Weights.DEFAULT,
+            'resnet152': ResNet152_Weights.DEFAULT
+        }
+
+        weights = weights_dict.get(name)
+        if weights is None:
+            raise ValueError(f"Unsupported backbone name: {name}")
+
         backbone = getattr(torchvision.models, name)(
             replace_stride_with_dilation=[False, False, dilation],
-            pretrained=True, norm_layer=FrozenBatchNorm2d)
+            weights=weights,
+            norm_layer=FrozenBatchNorm2d)
+        
         num_channels = 512 if name in ('resnet18', 'resnet34') else 2048
         super().__init__(backbone, train_backbone, num_channels, return_interm_layers)
 

@@ -134,30 +134,26 @@ def postprocess_with_datr(elements: List[TextElement], structure_path: Path, fil
 #Example
 
 if __name__ == "__main__":
-    try:
-        # Example usage
-        base_path = Path("preprocess_document/output")
-        pdf_path = base_path / "Delivery condition_501001_DL-06-ST-463-ENG Rev J.pdf"
+    # Example usage
+    base_path = Path("preprocess_document/output")
+    pdf_path = base_path / "sample.pdf"
 
-        detection_path = base_path / "results/detection"
-        structure_path = base_path / "results/structure"
-        
-        # base_path의 마지막 디렉토리 이름과 pdf_path의 파일 이름(확장자를 제외한 부분)을 결합하여 file_prefix 생성
-        file_prefix = f"{base_path.stem}_{pdf_path.stem}"
+    detection_path = base_path / "results/detection"
+    structure_path = base_path / "results/structure"
+    
+    # base_path의 마지막 디렉토리 이름과 pdf_path의 파일 이름(확장자를 제외한 부분)을 결합하여 file_prefix 생성
+    file_prefix = f"{base_path.stem}_{pdf_path.stem}"
 
-        pdfplumber_extracted_text = process_pdf_text_from_plumber(pdf_path, detection_path, file_prefix)
+    pdfplumber_extracted_text = process_pdf_text_from_plumber(pdf_path, detection_path, file_prefix)
 
-        # for element in pdfplumber_extracted_text:
-        #     print(f"Type: {element.type}, Page: {element.page_number}, Table Index: {element.table_index}")
-        #     print(element.text)
-        #     print("-" * 80)
+    for element in pdfplumber_extracted_text:
+        print(f"Type: {element.type}, Page: {element.page_number}, Table Index: {element.table_index}")
+        print(element.text)
+        print("-" * 80)
 
-        postprocess_result = postprocess_with_datr(pdfplumber_extracted_text, structure_path, file_prefix)
+    # postprocess_result = postprocess_with_datr(pdfplumber_extracted_text, structure_path, file_prefix)
 
-        for element in postprocess_result:
-            print(f"Type: {element.type}, Page: {element.page_number}, Table Index: {element.table_index}")
-            print(element.text)
-            print("-" * 80)
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
+    # for element in postprocess_result:
+    #     print(f"Type: {element.type}, Page: {element.page_number}, Table Index: {element.table_index}")
+    #     print(element.text)
+    #     print("-" * 80)
