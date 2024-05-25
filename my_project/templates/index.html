@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PDF Annotation Viewer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            flex-direction: row;
+        }
+        #controls {
+            padding: 10px;
+            background-color: #f4f4f4;
+            border-bottom: 1px solid #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1000;
+        }
+        #pdf-sidebar {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            margin-top: 60px; /* Height of the controls bar */
+            width: 50%;
+            resize: horizontal;
+            overflow: hidden;
+        }
+        #pdf-container {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .page {
+            margin: 10px auto;
+            border: 1px solid #ccc;
+            width: 100%;
+        }
+        #annotations {
+            width: 50%;
+            padding: 10px;
+            background-color: #f4f4f4;
+            overflow: auto;
+            height: 100%;
+        }
+        .annotation {
+            cursor: pointer;
+            color: blue;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <form id="upload-form" enctype="multipart/form-data">
+            <input type="file" id="file-input" name="file" accept="application/pdf">
+            <button type="submit">Upload PDF</button>
+        </form>
+        <div>
+            <button id="prev-page">←</button>
+            <input type="text" id="page-num-input" value="1" size="3">
+            <span>/ <span id="page-count">0</span></span>
+            <button id="next-page">→</button>
+            <span>Zoom: <span id="zoom-level">100%</span></span>
+        </div>
+    </div>
+    <div id="pdf-sidebar">
+        <div id="pdf-container"></div>
+    </div>
+    <div id="annotations"></div>
+
+    <!-- PDF.js 라이브러리 추가 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js"></script>
+
+    <script>
+        let pdfDoc = null;
+        let zoomLevel = 1.0;
+        let uploadedFile = null;
+        let currentPage = 1;
+        let totalPages = 0;
+
+        const pdfContainer = document.getElementById('pdf-container');
+        const pageNumInput = document.getElementById('page-num-input');
+        const pageCountElement = document.getElementById('page-count');
+        const zoomLevelElement = document.getElementById('zoom-level');
+
+        // PDF.js 초기화
+        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js';
+
+        document.getElementById('upload-form').onsubmit = function(event) {
+            event.preventDefault();
+            const fileInput = document.getElementById('file-input');
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.filename) {
+                    uploadedFile = data.filename;
+                    loadPDF(`/pdf/${uploadedFile}`);
+                } else {
+                    alert('File upload failed');
+                }
+            });
+        };
+
+        function loadPDF(url) {
+            pdfjsLib.getDocument(url).promise.then((pdfDoc_) => {
+                pdfDoc = pdfDoc_;
+                totalPages = pdfDoc.numPages;
+                pageCountElement.textContent = totalPages;
+                renderPages();
+            });
+        }
+
+        function renderPages() {
+            pdfContainer.innerHTML = ''; // Clear previous renders
+
+            for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+                pdfDoc.getPage(pageNum).then((page) => {
+                    const viewport = page.getViewport({ scale: zoomLevel });
+
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    const outputScale = window.devicePixelRatio || 1;
+
+                    canvas.width = Math.floor(viewport.width * outputScale);
+                    canvas.height = Math.floor(viewport.height * outputScale);
+                    canvas.style.width = Math.floor(viewport.width) + 'px';
+                    canvas.style.height = Math.floor(viewport.height) + 'px';
+                    canvas.classList.add('page');
+
+                    const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
+
+                    const renderContext = {
+                        canvasContext: context,
+                        viewport: viewport,
+                        transform: transform
+                    };
+
+                    pdfContainer.appendChild(canvas);
+
+                    page.render(renderContext).promise.then(() => {
+                        console.log(`Page ${pageNum} rendered`);
+                    });
+                });
+            }
+            updateZoomLevel();
+        }
+
+        document.getElementById('prev-page').addEventListener('click', () => {
+            if (currentPage <= 1) {
+                return;
+            }
+            currentPage--;
+            scrollToPage(currentPage);
+        });
+
+        document.getElementById('next-page').addEventListener('click', () => {
+            if (currentPage >= totalPages) {
+                return;
+            }
+            currentPage++;
+            scrollToPage(currentPage);
+        });
+
+        pageNumInput.addEventListener('change', () => {
+            let desiredPage = parseInt(pageNumInput.value);
+            if (desiredPage > 0 && desiredPage <= totalPages) {
+                currentPage = desiredPage;
+                scrollToPage(currentPage);
+            } else {
+                pageNumInput.value = currentPage;
+            }
+        });
+
+        pdfContainer.addEventListener('wheel', (event) => {
+            if (event.ctrlKey) {
+                if (event.deltaY < 0) {
+                    zoomLevel = Math.min(zoomLevel + 0.1, 3.0);  // 최대 줌인 수준 설정
+                } else {
+                    zoomLevel = Math.max(zoomLevel - 0.1, 0.5);  // 최소 줌아웃 수준 설정
+                }
+                renderPages();
+                event.preventDefault();  // 기본 스크롤 동작 방지
+            }
+        });
+
+        function scrollToPage(pageNum) {
+            const pages = pdfContainer.getElementsByClassName('page');
+            const pageElement = pages[pageNum - 1];
+            if (pageElement) {
+                pageElement.scrollIntoView();
+                pageNumInput.value = pageNum;
+            }
+        }
+
+        function updateZoomLevel() {
+            zoomLevelElement.textContent = (zoomLevel * 100).toFixed(0) + '%';
+        }
+
+        let isDragging = false;
+        let startX, startY, scrollLeft, scrollTop;
+
+        pdfContainer.addEventListener('mousedown', (event) => {
+            isDragging = true;
+            startX = event.pageX - pdfContainer.offsetLeft;
+            startY = event.pageY - pdfContainer.offsetTop;
+            scrollLeft = pdfContainer.scrollLeft;
+            scrollTop = pdfContainer.scrollTop;
+        });
+
+        pdfContainer.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        pdfContainer.addEventListener('mousemove', (event) => {
+            if (!isDragging) return;
+            event.preventDefault();
+            const x = event.pageX - pdfContainer.offsetLeft;
+            const y = event.pageY - pdfContainer.offsetTop;
+            const walkX = x - startX;
+            const walkY = y - startY;
+            pdfContainer.scrollLeft = scrollLeft - walkX;
+            pdfContainer.scrollTop = scrollTop - walkY;
+        });
+
+        function fetchAnnotations() {
+            fetch('/annotations')
+                .then(response => response.json())
+                .then(annotations => {
+                    const annotationsDiv = document.getElementById('annotations');
+                    annotationsDiv.innerHTML = '';
+
+                    annotations.forEach(annot => {
+                        const div = document.createElement('div');
+                        div.className = 'annotation';
+                        div.textContent = `Annotation ${annot.id}: ${annot.text}`;
+                        div.onclick = () => scrollToAnnotation(annot);
+                        annotationsDiv.appendChild(div);
+                    });
+                });
+        }
+
+        function scrollToAnnotation(annot) {
+            const container = document.getElementById('pdf-container');
+            const yOffset = annot.y - container.clientHeight / 2;
+            container.scrollTo(annot.x, yOffset);
+        }
+
+        document.getElementById('add-annotation').onclick = () => {
+            const text = prompt('Enter annotation text:');
+            const x = parseInt(prompt('Enter x coordinate:'), 10);
+            const y = parseInt(prompt('Enter y coordinate:'), 10);
+
+            const newAnnotation = { page: currentPage - 1, x, y, text };
+            fetch('/annotations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(newAnnotation)
+            })
+            .then(response => response.json())
+            .then(() => fetchAnnotations());
+        };
+    </script>
+</body>
+</html>
