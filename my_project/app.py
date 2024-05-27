@@ -23,8 +23,11 @@ def upload_file():
     if file.filename == '':
         return jsonify({"error": "No selected file"}), 400
     if file and allowed_file(file.filename):
-        filename = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-        file.save(filename)
+        filename = file.filename
+        if filename is None:
+            return jsonify({"error": "Filename is None"}), 400
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(file_path)
         return jsonify({"filename": file.filename}), 201
     return jsonify({"error": "File type not allowed"}), 400
 
