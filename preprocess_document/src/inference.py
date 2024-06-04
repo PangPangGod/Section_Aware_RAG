@@ -14,8 +14,6 @@ from PIL import Image
 from fitz import Rect
 import numpy as np
 import pandas as pd
-import matplotlib
-#matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.patches import Patch
@@ -877,17 +875,16 @@ def output_result(key, val, args, img, img_file):
             out_path = os.path.join(args.out_dir, out_file)
             visualize_detected_tables(img, val, out_path)
     elif not key == 'image' and not key == 'tokens':
-        for idx, elem in enumerate(val):
+        for idx, elem in enumerate(val, start=1):
             if key == 'crops':
-                for idx, cropped_table in enumerate(val):
+                for idx, cropped_table in enumerate(val, start=1):
                     out_img_file = img_file.replace(".jpg", "_table_{}.jpg".format(idx)).replace(".png", "_table_{}.png".format(idx))
-                    cropped_table['image'].save(os.path.join(args.out_dir,
-                                                                out_img_file))
+                    cropped_table['image'].save(os.path.join(args.out_dir, out_img_file))
                     out_words_file = out_img_file.replace(".jpg", "_words.json").replace(".png", "_words.json")
                     with open(os.path.join(args.out_dir, out_words_file), 'w', encoding="utf-8") as f:
                         json.dump(cropped_table['tokens'], f, indent=2)
             elif key == 'cells':
-                out_file = img_file.replace(".jpg", "_{}_objects.json".format(idx)).replace(".png", "_{}_objects.json".format(idx))
+                out_file = img_file.replace(".jpg", "_cells.json").replace(".png", "_cells.json")
                 with open(os.path.join(args.out_dir, out_file), 'w', encoding="utf-8") as f:
                     json.dump(elem, f, indent=2)
                 if args.verbose:
@@ -896,8 +893,8 @@ def output_result(key, val, args, img, img_file):
                     out_file = img_file.replace(".jpg", "_fig_cells.jpg").replace(".png", "_fig_cells.png")
                     out_path = os.path.join(args.out_dir, out_file)
                     visualize_cells(img, elem, out_path)
-            else:
-                out_file = img_file.replace(".jpg", "_{}.{}".format(idx, key)).replace(".png", "_{}.{}".format(idx, key))
+            elif key == 'html':
+                out_file = img_file.replace(".jpg", ".html").replace(".png", ".html")
                 with open(os.path.join(args.out_dir, out_file), 'w', encoding="utf-8") as f:
                     try:
                         f.write(elem)
@@ -905,7 +902,6 @@ def output_result(key, val, args, img, img_file):
                         f.write('')
                 if args.verbose:
                     print(elem)
-                        
 
 def main():
     args = get_args()
@@ -933,6 +929,7 @@ def main():
     random.shuffle(img_files)
 
     for count, img_file in enumerate(img_files):
+        img_file = img_file.replace("output_", "")  # 파일 이름에서 'output_' 접두사 제거
         print("({}/{})".format(count+1, num_files))
         try:
             img_path = os.path.join(args.image_dir, img_file)
@@ -983,25 +980,26 @@ def main():
             if args.mode == 'extract':
                 extracted_tables = pipe.extract(img, tokens, out_objects=args.objects, out_cells=args.cells,
                                                 out_html=args.html, out_csv=args.csv,
-                                                crop_padding=args.crop_padding, args=args, img_file=img_file,)
+                                                crop_padding=args.crop_padding, args=args, img_file=img_file)
                 print("Table(s) extracted.")
 
                 args_structure = deepcopy(args)
                 args_structure.out_dir = os.path.join(args.out_dir, 'structure')
-                for table_idx, extracted_table in enumerate(extracted_tables):
+                for table_idx, extracted_table in enumerate(extracted_tables, start=1):
                     for key, val in extracted_table.items():
                         output_result(key, val, args_structure, extracted_table['image'],
                                     img_file.replace('.jpg', '_{}.jpg'.format(table_idx)).replace('.png', '_{}.png'.format(table_idx)))
         except Exception as e:
             print(f'while processing {os.path.join(args.image_dir, img_file)}, got error: {e}.')
             continue
-    
+
     if len(pipe.times) > 0:
         print(f'Total Avg time: {sum(pipe.times) / len(pipe.times)}s. Total of {len(pipe.times)} documents.')
     if len(pipe.detect_times) > 0:
         print(f'Total Detection Avg time: {sum(pipe.detect_times) / len(pipe.detect_times)}s. Total of {len(pipe.detect_times)} documents.')
     if len(pipe.recognize_times) > 0:
         print(f'Total Recognize Avg time: {sum(pipe.recognize_times) / len(pipe.recognize_times)}s. Total of {len(pipe.recognize_times)} tables.')
+
 
 if __name__ == "__main__":
     main()

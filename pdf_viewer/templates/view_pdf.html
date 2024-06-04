@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>View PDF</title>
+    <script src="{{ url_for('static', filename='pdfjs/pdf.js') }}"></script>
+    <script src="{{ url_for('static', filename='pdfjs/pdf.worker.js') }}"></script>
+    <script src="{{ url_for('static', filename='pdfobject/pdfobject.min.js') }}"></script>
+    <style>
+        #pdf-viewer {
+            width: 100%;
+            height: 800px;
+        }
+    </style>
+</head>
+<body>
+    <h1>PDF Viewer</h1>
+    <div id="pdf-viewer"></div>
+    <script>
+        var url = "{{ url_for('uploaded_file', filename=filename) }}";
+        var options = {
+            pdfOpenParams: { view: 'Fit' },
+            forcePDFJS: true,
+            PDFJS_URL: "{{ url_for('static', filename='pdfjs/web/viewer.html') }}"
+        };
+        PDFObject.embed(url, "#pdf-viewer", options);
+    </script>
+</body>
+</html>

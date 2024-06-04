@@ -4,8 +4,10 @@ import pdfplumber
 from pathlib import Path
 from pydantic import BaseModel
 from typing import List, Any
+from datetime import datetime
 
 import htmltabletomd
+import pymupdf4llm
 
 """ 
     Handle the results generated through preprocess_document
@@ -25,7 +27,6 @@ import htmltabletomd
 
 """
 
-
 # Define TextElement class
 class TextElement(BaseModel):
     type: str
@@ -33,6 +34,7 @@ class TextElement(BaseModel):
     page_number: int
     table_index: Any
     is_table: bool = False
+    bbox:tuple = None
 
 def convert_pdf_to_pixels(pdf_width, pdf_height, dpi=300):
     """Convert PDF dimensions from points to pixels at a specific DPI."""
@@ -77,7 +79,7 @@ def process_pdf_text_from_plumber(pdf_path: str, detection_folder: Path, file_pr
     """
     results = []
     with pdfplumber.open(pdf_path) as pdf:
-        for page_number, page in enumerate(pdf.pages):
+        for page_number, page in enumerate(pdf.pages, start=1):  # 페이지 번호 1부터 시작
             objects = load_page_objects(page_number, detection_folder, file_prefix)
             if not objects:
                 continue
@@ -85,7 +87,7 @@ def process_pdf_text_from_plumber(pdf_path: str, detection_folder: Path, file_pr
             tables = [adjust_coordinates_for_dpi(obj['bbox'], page.width, page.height, dpi) for obj in sorted_objects]
             current_text = ""
             is_current_table = False
-            table_index = -1  # index -1부터 시작
+            table_index = 0  # 테이블 인덱스 1부터 시작
 
             for line in page.extract_text_lines(return_chars=True):
                 line_bbox = (line['x0'], line['top'], line['x1'], line['bottom'])
@@ -98,7 +100,8 @@ def process_pdf_text_from_plumber(pdf_path: str, detection_folder: Path, file_pr
                             text=current_text,
                             page_number=page_number,
                             is_table=is_current_table,
-                            table_index=table_index if is_current_table else None
+                            table_index=table_index if is_current_table else None,
+                            bbox=line_bbox  # Include bbox
                         ))
                         current_text = ""
                     is_current_table = line_is_table
@@ -113,7 +116,8 @@ def process_pdf_text_from_plumber(pdf_path: str, detection_folder: Path, file_pr
                     text=current_text,
                     page_number=page_number,
                     is_table=is_current_table,
-                    table_index=table_index if is_current_table else None
+                    table_index=table_index if is_current_table else None,
+                    bbox=line_bbox  # Include bbox
                 ))
 
     return results
@@ -122,12 +126,15 @@ def postprocess_with_datr(elements: List[TextElement], structure_path: Path, fil
     """Parse html table to text and add to TextElement class."""
     for element in elements:
         if element.is_table:
-            html_path = structure_path / f"{file_prefix}_page{element.page_number}_{element.table_index}_0.html"
+            html_path = structure_path / f"{file_prefix}_page{element.page_number}_{element.table_index}.html"
             if html_path.exists():
                 with open(html_path, 'r', encoding='utf-8') as file:
                     html_content = file.read()
                 element.text = htmltabletomd.convert_table(html_content)
     return elements
+
+def get_mupdf4llm_markdown(pdf_path:str):
+    return pymupdf4llm.to_markdown(str(pdf_path), page_chunks=True)
 
 
 ###########################################################
@@ -136,24 +143,25 @@ def postprocess_with_datr(elements: List[TextElement], structure_path: Path, fil
 if __name__ == "__main__":
     # Example usage
     base_path = Path("preprocess_document/output")
-    pdf_path = base_path / "sample.pdf"
+    pdf_path = base_path / "this_is_sample.pdf"
 
     detection_path = base_path / "results/detection"
     structure_path = base_path / "results/structure"
     
     # base_path의 마지막 디렉토리 이름과 pdf_path의 파일 이름(확장자를 제외한 부분)을 결합하여 file_prefix 생성
-    file_prefix = f"{base_path.stem}_{pdf_path.stem}"
+    file_prefix = f"{pdf_path.stem}"
 
     pdfplumber_extracted_text = process_pdf_text_from_plumber(pdf_path, detection_path, file_prefix)
 
-    for element in pdfplumber_extracted_text:
-        print(f"Type: {element.type}, Page: {element.page_number}, Table Index: {element.table_index}")
-        print(element.text)
-        print("-" * 80)
-
-    # postprocess_result = postprocess_with_datr(pdfplumber_extracted_text, structure_path, file_prefix)
-
-    # for element in postprocess_result:
+    # for element in pdfplumber_extracted_text:
     #     print(f"Type: {element.type}, Page: {element.page_number}, Table Index: {element.table_index}")
     #     print(element.text)
     #     print("-" * 80)
+
+    postprocess_result = postprocess_with_datr(pdfplumber_extracted_text, structure_path, file_prefix)
+
+    for element in postprocess_result:
+        print(f"Type: {element.type}, Page: {element.page_number}, Table Index: {element.table_index}")
+        print(element.text)
+        print(element.bbox)
+        print("-" * 80)

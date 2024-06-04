@@ -6,6 +6,7 @@ import platform
 from PIL import ImageDraw
 import json
 import os
+from datetime import datetime
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -57,23 +58,17 @@ if __name__ == "__main__":
 
     for fname in pdf_files:
         pdf_basename = fname.stem
-        folder_name = fname.parent.name
-        folder_name = folder_name.split(')')[0] # for simplicity
-        pdf_filename = f'{folder_name}_{fname.stem}'
-        
+        # 폴더명을 제외한 파일 이름 생성
+        pdf_filename = fname.stem
+
         try:
             pages = convert_from_path(fname, dpi=300)
             pages_fitz = fitz.open(fname)
             print('successful PDF reading')
 
-            for page_num, (page, page_fitz) in enumerate(zip(pages, pages_fitz)):
+            for page_num, (page, page_fitz) in enumerate(zip(pages, pages_fitz), start=1):
                 print(f'{pdf_filename}_page{page_num}{postfix}')                
                 page_words = get_words_from_pdf(page_fitz, page.size)
-                # # check
-                # draw = ImageDraw.Draw(page)
-                # for word in page_words:
-                #     box = word['bbox']
-                #     draw.rectangle(box, outline=(255,0,0), width=4)
 
                 page.save(res_image / f'{pdf_filename}_page{page_num}{postfix}')
                 with open(res_word / f'{pdf_filename}_page{page_num}_words.json', 'w', encoding='utf-8') as f:
@@ -88,13 +83,17 @@ if __name__ == "__main__":
             error_files.append(pdf_filename)
             continue
 
+    # 현재 시간 추가
+    current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
     print('======== Report ========')
     print(f'Processed {len(pdf_files)} pdf files.')
     print(f'Successed {len(pdf_files)-len(error_files)} pdf files, Failed {len(error_files)} pdf files.')
     print(f'Successed {success_imgs_count} pages.')
 
-    with open(root / 'report.txt', 'w') as f:
+    with open(root / 'report.txt', 'a') as f:
         f.write('======== Report ========\n')
+        f.write(f'Time: {current_time}\n')
         f.write(f'Processed {len(pdf_files)} pdf files.\n')
         f.write(f'Successed {len(pdf_files)-len(error_files)} pdf files, Failed {len(error_files)} pdf files.\n')
         f.write(f'Successed {success_imgs_count} pages.\n')
